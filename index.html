@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wumpus World - Artificial Intelligence Logic & Exploration Arena</title>
+    <meta name="description" content="A dark enchanted forest edition of Wumpus World featuring dynamic Fog of War, directional archer hunter, and propositional logic solver visualizer.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Firefly & Forest Spore Canvas -->
+    <canvas id="particle-canvas"></canvas>
+    <div class="bg-forest-texture"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation & Global Controls (Restored Original Title & Subtitle) -->
+        <header class="game-header">
+            <div class="brand-section">
+                <div class="brand-icon">🏹</div>
+                <div>
+                    <h1 class="brand-title">WUMPUS WORLD</h1>
+                    <div class="brand-subtitle">Artificial Intelligence Logic & Exploration Arena</div>
+                </div>
+            </div>
+
+            <div class="header-controls">
+                <select id="preset-select" class="preset-select" title="Select World Preset">
+                    <option value="AIMA_CLASSIC">Classic AIMA (Russell & Norvig)</option>
+                    <option value="BEGINNER">Enchanted Grove (1 Pit, Easy)</option>
+                    <option value="RANDOM_4">Random 4x4 Woods</option>
+                    <option value="RANDOM_5">Random 5x5 Deep Forest</option>
+                    <option value="RANDOM_6">Random 6x6 Ancient Labyrinth</option>
+                </select>
+
+                <button id="btn-god-mode" class="btn" title="Toggle visibility of all forest chambers">👁️ God Mode: OFF</button>
+                <button id="btn-ai-overlay" class="btn active" title="Toggle AI Knowledge Base markers on tiles">🧠 AI Overlay</button>
+                <button id="btn-mute" class="btn active" title="Toggle Audio Synthesizer">🔊 Sound: ON</button>
+                <button id="btn-new-game" class="btn btn-primary" title="Generate New Cavern">⚡ New Forest</button>
+                <button id="btn-reset" class="btn" title="Restart Current Forest">🔄 Restart</button>
+                <button id="btn-help" class="btn btn-icon" title="Game Rules & Guide">❓</button>
+            </div>
+        </header>
+
+        <!-- Main Viewport (Zero-Scroll 2-Column Grid) -->
+        <main class="main-layout">
+            <!-- Left Column: Player Sheet, Stats, Sensors, Expedition Feed & Controls (NO BLANK SPACE) -->
+            <section class="left-panel" aria-label="Adventurer Sheet and Controls">
+                <!-- Hunter Card -->
+                <div class="hunter-card">
+                    <img src="assets/hunter.jpg" alt="Forest Ranger Portrait" class="hunter-avatar" onerror="this.src='assets/banner.jpg'">
+                    <div class="hunter-info">
+                        <div class="hunter-name">Gareth the Ranger</div>
+                        <div class="hunter-status">
+                            <span id="hunter-status-dot" class="status-dot"></span>
+                            <span id="hunter-status-text">Stalking the Woods</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Single-Line Clean Stats Grid -->
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Score</span>
+                        <span id="stat-score" class="stat-value score">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Moves</span>
+                        <span id="stat-moves" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Arrows</span>
+                        <!-- Clean single line, NO bow emoji -->
+                        <span id="stat-arrow" class="stat-value">Ready (1)</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Forest Relic</span>
+                        <span id="stat-gold" class="stat-value">None</span>
+                    </div>
+                    <div class="stat-item" style="grid-column: span 2;">
+                        <span class="stat-label">Facing Direction</span>
+                        <span id="stat-facing" class="stat-value" style="color: var(--emerald-light);">EAST</span>
+                    </div>
+                </div>
+
+                <!-- Sensory Percept Radar -->
+                <div class="radar-section">
+                    <div class="section-title">Sensory Percept Radar</div>
+                    <div class="percept-badges">
+                        <div id="badge-stench" class="percept-badge stench" title="Felt in chambers adjacent to Wumpus">
+                            <span>🤢</span> Stench
+                        </div>
+                        <div id="badge-breeze" class="percept-badge breeze" title="Felt in chambers adjacent to a Pit">
+                            <span>💨</span> Breeze
+                        </div>
+                        <div id="badge-glitter" class="percept-badge glitter" title="Seen directly on Relic tile">
+                            <span>✨</span> Glitter
+                        </div>
+                        <div id="badge-bump" class="percept-badge bump" title="Impact with boundary trees">
+                            <span>💥</span> Bump
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Field Guide & Scoring Rules (Clean, informative, no feed ticker) -->
+                <div class="field-guide-card">
+                    <div class="section-title">Field Guide & Rules</div>
+                    <div class="legend-grid">
+                        <div class="legend-item"><span>🤢</span> <span>Monster nearby</span></div>
+                        <div class="legend-item"><span>💨</span> <span>Pit nearby</span></div>
+                        <div class="legend-item"><span>✨</span> <span>Relic on tile</span></div>
+                        <div class="legend-item"><span>💥</span> <span>Boundary wall</span></div>
+                    </div>
+                    
+                    <div class="scoring-guide-grid">
+                        <div class="scoring-tag win"><span>+1000</span> <small>Win with Relic</small></div>
+                        <div class="scoring-tag lose"><span>-1000</span> <small>Death / Fall</small></div>
+                        <div class="scoring-tag cost"><span>-1</span> <small>Per Action</small></div>
+                        <div class="scoring-tag arrow"><span>-10</span> <small>Shoot Arrow</small></div>
+                    </div>
+                </div>
+
+                <!-- On-Screen Controls -->
+                <div class="controls-card">
+                    <div class="section-title">Manual Controls</div>
+                    
+                    <div class="dpad-container">
+                        <button id="btn-forward" class="dpad-btn" title="Move Forward (W / Up Arrow)">
+                            ▲
+                            <small>FWD</small>
+                        </button>
+                        <div class="dpad-row">
+                            <button id="btn-turn-left" class="dpad-btn" title="Turn Left (A / Left Arrow)">
+                                ◀
+                                <small>LEFT</small>
+                            </button>
+                            <button id="btn-turn-right" class="dpad-btn" title="Turn Right (D / Right Arrow)">
+                                ▶
+                                <small>RIGHT</small>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons-grid">
+                        <button id="btn-grab" class="action-btn grab" title="Grab Relic (Space)">
+                            <span>✨</span>
+                            <span>Grab</span>
+                        </button>
+                        <button id="btn-shoot" class="action-btn shoot" title="Release Arrow (F)">
+                            <span>🎯</span>
+                            <span>Shoot</span>
+                        </button>
+                        <button id="btn-climb" class="action-btn climb" title="Escape Forest at (1,1) (C)">
+                            <span>🚪</span>
+                            <span>Exit</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Forest Arena Grid & Integrated AI Ribbon -->
+            <section class="arena-panel" aria-label="Enchanted Forest Grid Arena">
+                <!-- Sleek AI Intelligence Ribbon -->
+                <div class="ai-status-ribbon">
+                    <div class="ai-mind-bubble">
+                        <span class="ai-mind-icon">🌿</span>
+                        <span id="ai-mind-text" class="ai-mind-text">AI Mind: Ready. Click "Step AI" or move to begin logical deduction.</span>
+                    </div>
+
+                    <div class="ai-quick-controls">
+                        <button id="btn-ai-step" class="btn btn-primary" title="Execute 1 deduction step">
+                            👣 Step AI
+                        </button>
+                        <button id="btn-ai-auto" class="btn" title="Toggle autonomous AI run">
+                            ▶️ Auto AI
+                        </button>
+                        <select id="speed-select" class="speed-select" title="AI Execution Speed">
+                            <option value="1">Slow (1.0s)</option>
+                            <option value="2">Normal (0.7s)</option>
+                            <option value="3" selected>Brisk (0.45s)</option>
+                            <option value="4">Fast (0.25s)</option>
+                        </select>
+                        <button id="btn-view-log" class="btn btn-icon" title="View Full AI Deduction Log">📜</button>
+                    </div>
+                </div>
+
+                <!-- Dungeon / Forest Grid Arena -->
+                <div class="grid-wrapper">
+                    <div id="dungeon-grid" class="dungeon-grid">
+                        <!-- Dynamically rendered cells -->
+                    </div>
+                </div>
+
+                <!-- Bottom Shortcuts Bar -->
+                <div class="bottom-shortcuts-bar">
+                    <span>⌨️ <strong>WASD / Arrows:</strong> Move & Turn</span>
+                    <span><strong>Space:</strong> Grab</span>
+                    <span><strong>F:</strong> Shoot Arrow</span>
+                    <span><strong>C:</strong> Exit Forest</span>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Game Over / Victory Modal -->
+    <div id="modal-gameover" class="modal-backdrop" role="dialog" aria-modal="true">
+        <div class="modal-card">
+            <img src="assets/banner.jpg" alt="Dark Forest" class="modal-banner" onerror="this.style.display='none'">
+            <h2 id="modal-title" class="modal-title victory">VICTORY!</h2>
+            <p id="modal-reason" style="text-align: center; color: var(--text-secondary); font-size: 0.95rem;"></p>
+
+            <div class="modal-stats">
+                <div>
+                    <div class="stat-label">Final Score</div>
+                    <div id="modal-score" class="stat-value score" style="font-size: 1.4rem;">+1000</div>
+                </div>
+                <div>
+                    <div class="stat-label">Total Steps</div>
+                    <div id="modal-moves" class="stat-value">14</div>
+                </div>
+                <div>
+                    <div class="stat-label">Relic Secured</div>
+                    <div id="modal-gold" class="stat-value" style="color: var(--firefly-gold);">Yes</div>
+                </div>
+            </div>
+
+            <button id="btn-modal-restart" class="btn btn-primary" style="justify-content: center; padding: 12px; font-size: 0.95rem;">
+                ⚔️ Explore Again
+            </button>
+        </div>
+    </div>
+
+    <!-- Full AI Deduction History Modal -->
+    <div id="modal-ai-log" class="modal-backdrop" role="dialog" aria-modal="true">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--forest-border); padding-bottom: 8px;">
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; color: var(--emerald-light);">🧠 Full AI Deduction History</h3>
+                <button id="btn-log-close" class="btn btn-icon">✕</button>
+            </div>
+            <div id="full-log-content" class="full-log-content">
+                <!-- Full history injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Rules & Guide Modal -->
+    <div id="modal-rules" class="modal-backdrop" role="dialog" aria-modal="true">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--forest-border); padding-bottom: 8px;">
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; color: var(--emerald-light);">📜 Dark Forest Rules & Cues</h3>
+                <button id="btn-rules-close" class="btn btn-icon">✕</button>
+            </div>
+
+            <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto;">
+                <p>Welcome to <strong>Wumpus World</strong>. Your objective is to find the mystical Relic and exit back at the starting clearing [1, 1] alive!</p>
+                
+                <p><strong>Percepts (Sensory Cues):</strong></p>
+                <ul style="padding-left: 18px; line-height: 1.6;">
+                    <li><strong>Stench 🤢</strong>: Felt adjacent to the dreaded <strong>Wumpus Beast</strong>.</li>
+                    <li><strong>Breeze 💨</strong>: Felt adjacent to a <strong>Bottomless Chasm</strong>.</li>
+                    <li><strong>Glitter ✨</strong>: Seen directly in the room with the <strong>Golden Relic</strong>.</li>
+                    <li><strong>Bump 💥</strong>: Impact with the outer impassable thicket.</li>
+                    <li><strong>Scream 😱</strong>: Echoes through the trees when your arrow hits and slays the beast!</li>
+                </ul>
+
+                <p><strong>Scoring:</strong> +1000 for escaping with Relic, -1000 for death, -1 per move, -10 for firing the arrow.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Game Scripts -->
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
+    <script src="ai_agent.js"></script>
+    <script src="ui.js"></script>
+</body>
+</html>
